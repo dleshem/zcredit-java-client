@@ -12,32 +12,20 @@ import com.google.api.client.http.HttpRequestFactory;
  * 2) Clears a credit payment using the in-site form.
  */
 public class ZcreditClient {
-	private final HttpRequestFactory requestFactory;
-	private final Integer connectTimeout;
-	private final Integer readTimeout;
-	private final String username;
-	private final String password;
+	private Authenticator authenticator;
+	private CreditCardClearer clearer;
 
-	public ZcreditClient(HttpRequestFactory requestFactory, Integer connectTimeout, Integer readTimeout,
-			String username, String password) {
-		this.requestFactory = requestFactory;
-		this.connectTimeout = connectTimeout;
-		this.readTimeout = readTimeout;
-		this.username = username;
-		this.password = password;
+	public ZcreditClient(HttpRequestFactory requestFactory, Integer connectTimeout, Integer readTimeout) {
+		authenticator = new Authenticator(requestFactory, connectTimeout, readTimeout);
+		clearer = new CreditCardClearer(requestFactory, connectTimeout, readTimeout);
 	}
 	
 	/**
 	 * @param creditCardPayment   Credit-card payment to clear.
 	 * @return the payment's unique ID
 	 */
-	public String clearCreditCard(CreditCardPayment creditCardPayment) throws IOException, ZcreditException {
-		final Authenticator authenticator = new Authenticator(
-				requestFactory, connectTimeout, readTimeout, username, password);
-		authenticator.authenticate();
-		
-		final CreditCardClearer clearer = new CreditCardClearer(
-				requestFactory, connectTimeout, readTimeout, authenticator.getSessionCookie());
-		return clearer.clearCreditCard(creditCardPayment);
+	public String sale(Credentials credentials, CreditCardPayment creditCardPayment) throws IOException, ZcreditException {
+		final String sessionCookie = authenticator.authenticate(credentials);
+		return clearer.clearCreditCard(sessionCookie, creditCardPayment);
 	}
 }

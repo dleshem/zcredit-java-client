@@ -20,21 +20,24 @@ public class Authenticator {
 	private final HttpRequestFactory requestFactory;
 	private final Integer connectTimeout;
 	private final Integer readTimeout;
-	private final String username;
-	private final String password;
 	
-	private String sessionCookie;
-	
-	public Authenticator(HttpRequestFactory requestFactory, Integer connectTimeout, Integer readTimeout,
-			String username, String password) {
+	public Authenticator(HttpRequestFactory requestFactory, Integer connectTimeout, Integer readTimeout) {
 		this.requestFactory = requestFactory;
 		this.connectTimeout = connectTimeout;
 		this.readTimeout = readTimeout;
-		this.username = username;
-		this.password = password;
 	}
 	
-	private FormBuilder getForm() throws IOException, ZcreditException {
+	private static class SessionCookieAndFormBuilder {
+		public final String sessionCookie;
+		public final FormBuilder formBuilder;
+		
+		public SessionCookieAndFormBuilder(String sessionCookie, FormBuilder formBuilder) {
+			this.sessionCookie = sessionCookie;
+			this.formBuilder = formBuilder;
+		}
+	}
+	
+	private SessionCookieAndFormBuilder retrieveSessionCookieAndFormBuilder() throws IOException, ZcreditException {
 		final HttpRequest request = requestFactory.buildGetRequest(new GenericUrl(LOGIN_URL));
 		if (connectTimeout != null) {
 			request.setConnectTimeout(connectTimeout);
@@ -45,22 +48,26 @@ public class Authenticator {
 		
 		final HttpResponse response = request.execute();
 		try {
-			sessionCookie = extractSessionCookie(response);
+			final String sessionCookie = extractSessionCookie(response);
 			
 			final Document doc = Jsoup.parse(response.getContent(), "UTF-8", "");
-			return FormBuilder.extract(doc);
+			final FormBuilder formBuilder = FormBuilder.extract(doc);
+			
+			return new SessionCookieAndFormBuilder(sessionCookie, formBuilder);
 		} finally {
 			response.ignore();
 		}
 	}
 	
-	public void authenticate() throws IOException, ZcreditException {
-		final FormBuilder builder = getForm();
-		builder.put("txt_username", username);
-		builder.put("txt_password", password);
+	public String authenticate(Credentials credentials) throws IOException, ZcreditException {
+		final SessionCookieAndFormBuilder scafb = retrieveSessionCookieAndFormBuilder();
+		
+		final FormBuilder formBuilder = scafb.formBuilder;
+		formBuilder.put("txt_username", credentials.username);
+		formBuilder.put("txt_password", credentials.password);
 		
 		final HttpRequest request = requestFactory.buildPostRequest(new GenericUrl(LOGIN_URL),
-				new UrlEncodedContent(builder.build()));
+				new UrlEncodedContent(formBuilder.build()));
 		if (connectTimeout != null) {
 			request.setConnectTimeout(connectTimeout);
 		}
@@ -69,7 +76,7 @@ public class Authenticator {
 		}
 		request.setFollowRedirects(false);
 		request.setThrowExceptionOnExecuteError(false);
-		request.getHeaders().setCookie(SESSION_COOKIE_NAME + "=" + sessionCookie);
+		request.getHeaders().setCookie(SESSION_COOKIE_NAME + "=" + scafb.sessionCookie);
 		
 		final HttpResponse response = request.execute();
 		try {
@@ -79,6 +86,8 @@ public class Authenticator {
 		} finally {
 			response.ignore();
 		}
+		
+		return scafb.sessionCookie;
 	}
 	
 	@SuppressWarnings("unchecked")
@@ -114,9 +123,5 @@ public class Authenticator {
 		}
 		
 		return setCookie.substring(startIndex, endIndex);
-	}
-	
-	public String getSessionCookie() {
-		return sessionCookie;
 	}
 }

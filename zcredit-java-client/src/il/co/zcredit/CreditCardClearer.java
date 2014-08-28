@@ -19,17 +19,14 @@ public class CreditCardClearer {
 	private final HttpRequestFactory requestFactory;
 	private final Integer connectTimeout;
 	private final Integer readTimeout;
-	private final String sessionCookie;
 	
-	public CreditCardClearer(HttpRequestFactory requestFactory, Integer connectTimeout, Integer readTimeout,
-			String sessionCookie) {
+	public CreditCardClearer(HttpRequestFactory requestFactory, Integer connectTimeout, Integer readTimeout) {
 		this.requestFactory = requestFactory;
 		this.connectTimeout = connectTimeout;
 		this.readTimeout = readTimeout;
-		this.sessionCookie = sessionCookie;
 	}
 	
-	private FormBuilder getForm() throws IOException, ZcreditException {
+	private FormBuilder getForm(String sessionCookie) throws IOException, ZcreditException {
 		final HttpRequest request = requestFactory.buildGetRequest(new GenericUrl(TRANSACTION_URL));
 		if (connectTimeout != null) {
 			request.setConnectTimeout(connectTimeout);
@@ -49,8 +46,8 @@ public class CreditCardClearer {
 		}
 	}
 	
-	public String clearCreditCard(CreditCardPayment creditCardPayment) throws IOException, ZcreditException {
-		final FormBuilder builder = getForm();
+	public String clearCreditCard(String sessionCookie, CreditCardPayment creditCardPayment) throws IOException, ZcreditException {
+		final FormBuilder builder = getForm(sessionCookie);
 		
 		builder.put("ctl00$ContentPlaceHolder$txt_creditcardNumber", creditCardPayment.number);
 		builder.put("ctl00$ContentPlaceHolder$DDL_MM", creditCardPayment.expireMonth);
